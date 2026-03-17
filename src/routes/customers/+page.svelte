@@ -269,61 +269,58 @@
       {/if}
     </div>
   {:else}
-    <div class="card p-0 overflow-hidden overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead class="bg-gray-50 border-b">
-          <tr>
-            <th class="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-            <th class="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
-            <th class="text-left px-4 py-3 font-medium text-gray-600">ID</th>
-            <th class="text-left px-4 py-3 font-medium text-gray-600">Added</th>
-            <th class="px-4 py-3"></th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          {#each filtered as customer}
-            <tr class="hover:bg-gray-50">
-              <td class="px-4 py-3">
-                <div class="flex items-center gap-2">
-                  <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-semibold text-sm">
-                    {customer.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <p class="font-medium text-gray-900">{customer.name}</p>
-                    {#if customer.email}
-                      <p class="text-xs text-gray-400">{customer.email}</p>
-                    {/if}
-                  </div>
-                </div>
-              </td>
-              <td class="px-4 py-3 text-gray-700">
-                <div class="flex items-center gap-1.5">
-                  <span>{customer.phone || '—'}</span>
-                  {#if customer.phone}
-                    <WhatsAppButton phone={customer.phone} message={genericWhatsAppMessage(customer)} />
-                  {/if}
-                </div>
-              </td>
-              <td class="px-4 py-3 text-gray-500">{customer.idType}: {customer.idNumber || '—'}</td>
-              <td class="px-4 py-3 text-gray-400">{formatDate(customer.createdAt)}</td>
-              <td class="px-4 py-3">
-                <div class="flex gap-1 justify-end flex-wrap">
-                  {#if pgCustomerIds.has(customer.id)}
-                    <button class="btn-danger text-xs py-1 px-2" on:click={() => openCheckOut(customer)}>Check Out</button>
-                  {:else}
-                    <button class="btn-success text-xs py-1 px-2" on:click={() => openCheckIn(customer)}>Assign PG Bed</button>
-                  {/if}
-                  {#if properties.length > 0}
-                    <button class="btn-secondary text-xs py-1 px-2" on:click={() => openLeaseModal(customer)}>Create Lease</button>
-                  {/if}
-                  <button class="btn-secondary text-xs py-1 px-2" on:click={() => openCustomerModal(customer)}>Edit</button>
-                  <button class="btn-danger text-xs py-1 px-2" on:click={() => removeCustomer(customer.id)}>Del</button>
-                </div>
-              </td>
-            </tr>
-          {/each}
-        </tbody>
-      </table>
+    <div class="space-y-2">
+      {#each filtered as customer}
+        <div class="card p-4">
+          <!-- Top row: avatar + name + actions -->
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 bg-blue-100 rounded-full flex items-center justify-center text-blue-700 font-semibold text-sm flex-shrink-0">
+                {customer.name.charAt(0).toUpperCase()}
+              </div>
+              <div class="min-w-0">
+                <p class="font-semibold text-gray-900 truncate">{customer.name}</p>
+                {#if customer.email}
+                  <p class="text-xs text-gray-400 truncate">{customer.email}</p>
+                {/if}
+              </div>
+            </div>
+            <!-- Status badge -->
+            {#if pgCustomerIds.has(customer.id)}
+              <span class="badge-success text-xs flex-shrink-0">PG</span>
+            {/if}
+          </div>
+
+          <!-- Details row -->
+          <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-500">
+            {#if customer.phone}
+              <div class="flex items-center gap-1">
+                <span>{customer.phone}</span>
+                <WhatsAppButton phone={customer.phone} message={genericWhatsAppMessage(customer)} />
+              </div>
+            {:else}
+              <span>No phone</span>
+            {/if}
+            {#if customer.idNumber}
+              <span>{customer.idType}: {customer.idNumber}</span>
+            {/if}
+          </div>
+
+          <!-- Action buttons -->
+          <div class="mt-3 flex gap-2 flex-wrap">
+            {#if pgCustomerIds.has(customer.id)}
+              <button class="btn-danger text-xs py-1.5 px-3" on:click={() => openCheckOut(customer)}>Check Out</button>
+            {:else}
+              <button class="btn-success text-xs py-1.5 px-3" on:click={() => openCheckIn(customer)}>Assign Bed</button>
+            {/if}
+            {#if properties.length > 0}
+              <button class="btn-secondary text-xs py-1.5 px-3" on:click={() => openLeaseModal(customer)}>Lease</button>
+            {/if}
+            <button class="btn-secondary text-xs py-1.5 px-3" on:click={() => openCustomerModal(customer)}>Edit</button>
+            <button class="btn-danger text-xs py-1.5 px-3" on:click={() => removeCustomer(customer.id)}>Del</button>
+          </div>
+        </div>
+      {/each}
     </div>
   {/if}
 </div>
