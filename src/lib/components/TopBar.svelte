@@ -9,7 +9,6 @@
 
   async function logout() {
     await supabase.auth.signOut();
-    goto('/login');
   }
 </script>
 
