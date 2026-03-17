@@ -92,7 +92,13 @@
   }
 
   async function removeCustomer(id) {
-    if (!confirm('Delete this customer?')) return;
+    if (!confirm('Delete this customer? Any active booking will be checked out and the bed released.')) return;
+    const bookings = await getBookingsByCustomer(id);
+    const active = bookings.find(b => b.status === 'active');
+    if (active) {
+      await updateBooking(active.id, { status: 'checked_out', checkOut: new Date().toISOString() });
+      await updateBed(active.bedId, { status: 'available' });
+    }
     await deleteCustomer(id);
     await load();
   }
@@ -109,15 +115,11 @@
     try {
     const bookingRef = await addBooking({
       customerId: selectedCustomer.id,
-      customerName: selectedCustomer.name,
       bedId: bed.id,
-      bedNumber: bed.bedNumber,
-      roomId: bed.roomId,
       propertyId: bed.propertyId || null,
       rentPerMonth: Number(checkInForm.rentPerMonth),
       deposit: Number(checkInForm.deposit) || 0,
       checkIn: new Date(checkInForm.checkIn).toISOString(),
-      checkOut: null,
       status: 'active',
     });
     await updateBed(bed.id, { status: 'occupied' });
