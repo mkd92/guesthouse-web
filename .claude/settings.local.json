@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(firebase --version)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(firebase deploy:*)",
+      "Bash(\"/Users/mkd92/Documents/Code/claude /rentrelay/guesthouse-web/.env\":*)",
+      "Bash(vercel --yes)",
+      "Bash(vercel env:*)",
+      "Bash(vercel --prod)",
+      "Bash(node import-customers.mjs)",
+      "Bash(gh auth:*)"
+    ]
+  }
+}

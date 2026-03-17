@@ -1,0 +1,330 @@
+<script>
+  import { onMount } from 'svelte';
+  import { getTransactions, addTransaction, updateTransaction, deleteTransaction, getCustomers, getBookings, getProperties } from '$lib/stores/data';
+  import { user } from '$lib/stores/auth';
+  import Modal from '$lib/components/Modal.svelte';
+  import WhatsAppButton from '$lib/components/WhatsAppButton.svelte';
+  import { rentReminderMessage } from '$lib/utils/whatsapp';
+  import { format } from 'date-fns';
+
+  let transactions = [];
+  let customers = [];
+  let activeBookings = [];
+  let properties = [];
+  let loading = true;
+  let filter = 'all'; // all, pending, paid
+  let selectedPropertyId = '';
+  let showModal = false;
+  let editingTxn = null;
+
+  let form = {
+    customerId: '',
+    bookingId: '',
+    amount: '',
+    type: 'rent',
+    period: format(new Date(), 'MMMM yyyy'),
+    status: 'pending',
+    dueDate: format(new Date(), 'yyyy-MM-dd'),
+    paidOn: '',
+    notes: ''
+  };
+
+  async function load() {
+    loading = true;
+    const filters = {};
+    if (filter !== 'all') filters.status = filter;
+    if (selectedPropertyId) filters.propertyId = selectedPropertyId;
+    [transactions, customers, activeBookings, properties] = await Promise.all([
+      getTransactions(filters),
+      getCustomers(),
+      getBookings('active'),
+      getProperties()
+    ]);
+    loading = false;
+  }
+
+  onMount(load);
+
+  $: load(), filter, selectedPropertyId;
+
+  function openModal(txn = null) {
+    editingTxn = txn;
+    form = txn ? {
+      customerId: txn.customerId,
+      bookingId: txn.bookingId || '',
+      amount: txn.amount,
+      type: txn.type,
+      period: txn.period,
+      status: txn.status,
+      dueDate: txn.dueDate?.toDate ? format(txn.dueDate.toDate(), 'yyyy-MM-dd') : (txn.dueDate || ''),
+      paidOn: txn.paidOn?.toDate ? format(txn.paidOn.toDate(), 'yyyy-MM-dd') : (txn.paidOn || ''),
+      notes: txn.notes || ''
+    } : {
+      customerId: '',
+      bookingId: '',
+      amount: '',
+      type: 'rent',
+      period: format(new Date(), 'MMMM yyyy'),
+      status: 'pending',
+      dueDate: format(new Date(), 'yyyy-MM-dd'),
+      paidOn: '',
+      notes: ''
+    };
+    showModal = true;
+  }
+
+  async function save() {
+    const customer = customers.find(c => c.id === form.customerId);
+    const booking = activeBookings.find(b => b.id === form.bookingId);
+    const data = {
+      ...form,
+      customerName: customer?.name || '',
+      bedNumber: booking?.bedNumber || '',
+      amount: Number(form.amount),
+      dueDate: form.dueDate ? new Date(form.dueDate) : null,
+      paidOn: form.paidOn ? new Date(form.paidOn) : null,
+      createdBy: $user.uid
+    };
+    if (editingTxn) {
+      await updateTransaction(editingTxn.id, data);
+    } else {
+      await addTransaction(data);
+    }
+    showModal = false;
+    await load();
+  }
+
+  async function markPaid(txn) {
+    await updateTransaction(txn.id, { status: 'paid', paidOn: new Date() });
+    await load();
+  }
+
+  async function removeTxn(id) {
+    if (!confirm('Delete this transaction?')) return;
+    await deleteTransaction(id);
+    await load();
+  }
+
+  function formatDate(ts) {
+    if (!ts) return '—';
+    const d = ts.toDate ? ts.toDate() : new Date(ts);
+    return format(d, 'dd MMM yyyy');
+  }
+
+  function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
+  }
+
+  function propertyName(id) {
+    return properties.find(p => p.id === id)?.name || null;
+  }
+
+  function customerPhone(customerId) {
+    return customers.find(c => c.id === customerId)?.phone || '';
+  }
+
+  function getRentReminderMsg(txn) {
+    const cust = customers.find(c => c.id === txn.customerId);
+    if (!cust) return '';
+    return rentReminderMessage({
+      customerName: cust.name,
+      amount: txn.amount,
+      period: txn.period,
+      propertyName: txn.propertyName || propertyName(txn.propertyId) || 'the property'
+    });
+  }
+
+  $: totalPending = transactions.filter(t => t.status === 'pending').reduce((s, t) => s + t.amount, 0);
+  $: totalPaid = transactions.filter(t => t.status === 'paid').reduce((s, t) => s + t.amount, 0);
+</script>
+
+<div class="p-4 md:p-6 space-y-5 max-w-4xl mx-auto">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="hidden md:block text-2xl font-bold text-gray-900">Transactions</h1>
+      <p class="text-sm text-gray-500 mt-0.5">Track all rent payments and dues</p>
+    </div>
+    <button class="btn-primary" on:click={() => openModal()}>+ Add Transaction</button>
+  </div>
+
+  <!-- Summary -->
+  <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
+    <div class="card text-center">
+      <p class="text-sm text-gray-500">Pending</p>
+      <p class="text-2xl font-bold text-red-600">{formatCurrency(totalPending)}</p>
+    </div>
+    <div class="card text-center">
+      <p class="text-sm text-gray-500">Collected (shown)</p>
+      <p class="text-2xl font-bold text-green-600">{formatCurrency(totalPaid)}</p>
+    </div>
+    <div class="card text-center sm:block hidden">
+      <p class="text-sm text-gray-500">Total Records</p>
+      <p class="text-2xl font-bold text-gray-900">{transactions.length}</p>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="flex gap-3 flex-wrap items-center">
+    <div class="flex gap-2 border-b pb-1 flex-1 min-w-0">
+      {#each ['all', 'pending', 'paid'] as f}
+        <button
+          class="px-4 py-1.5 text-sm font-medium rounded-t-lg transition-colors
+            {filter === f ? 'bg-blue-50 text-blue-700 border-b-2 border-blue-600' : 'text-gray-500 hover:text-gray-700'}"
+          on:click={() => filter = f}
+        >
+          {f.charAt(0).toUpperCase() + f.slice(1)}
+        </button>
+      {/each}
+    </div>
+    <select class="input w-auto" bind:value={selectedPropertyId}>
+      <option value="">All Properties</option>
+      {#each properties as p}
+        <option value={p.id}>{p.name}</option>
+      {/each}
+    </select>
+  </div>
+
+  {#if loading}
+    <div class="space-y-2">
+      {#each Array(5) as _}
+        <div class="card animate-pulse h-14"></div>
+      {/each}
+    </div>
+  {:else if transactions.length === 0}
+    <div class="card text-center py-16">
+      <p class="text-4xl mb-3">💰</p>
+      <p class="text-gray-500">No transactions found.</p>
+    </div>
+  {:else}
+    <div class="card p-0 overflow-hidden overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-gray-50 border-b">
+          <tr>
+            <th class="text-left px-4 py-3 font-medium text-gray-600">Customer</th>
+            <th class="text-left px-4 py-3 font-medium text-gray-600">Period</th>
+            <th class="text-left px-4 py-3 font-medium text-gray-600">Type</th>
+            <th class="text-right px-4 py-3 font-medium text-gray-600">Amount</th>
+            <th class="text-left px-4 py-3 font-medium text-gray-600">Due Date</th>
+            <th class="text-left px-4 py-3 font-medium text-gray-600">Status</th>
+            <th class="px-4 py-3"></th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {#each transactions as txn}
+            {@const phone = customerPhone(txn.customerId)}
+            <tr class="hover:bg-gray-50">
+              <td class="px-4 py-3">
+                <p class="font-medium text-gray-900">{txn.customerName || '—'}</p>
+                {#if txn.bedNumber}
+                  <p class="text-xs text-gray-400">Bed {txn.bedNumber}</p>
+                {:else if txn.unitName}
+                  <p class="text-xs text-gray-400">{txn.unitName}</p>
+                {/if}
+                {#if txn.propertyId}
+                  <p class="text-xs text-gray-400">{txn.propertyName || propertyName(txn.propertyId)}</p>
+                {/if}
+              </td>
+              <td class="px-4 py-3 text-gray-600">{txn.period || '—'}</td>
+              <td class="px-4 py-3">
+                <span class="badge-blue capitalize">{txn.type}</span>
+              </td>
+              <td class="px-4 py-3 text-right font-semibold text-gray-900">{formatCurrency(txn.amount)}</td>
+              <td class="px-4 py-3 text-gray-500">{formatDate(txn.dueDate)}</td>
+              <td class="px-4 py-3">
+                {#if txn.status === 'paid'}
+                  <span class="badge-green">Paid</span>
+                  <p class="text-xs text-gray-400">{formatDate(txn.paidOn)}</p>
+                {:else}
+                  <span class="badge-red">Pending</span>
+                {/if}
+              </td>
+              <td class="px-4 py-3">
+                <div class="flex gap-1 justify-end items-center">
+                  {#if txn.status === 'pending'}
+                    <button class="btn-success text-xs py-1 px-2" on:click={() => markPaid(txn)}>Mark Paid</button>
+                    {#if phone}
+                      <WhatsAppButton {phone} message={getRentReminderMsg(txn)} label="Remind" />
+                    {/if}
+                  {/if}
+                  <button class="btn-secondary text-xs py-1 px-2" on:click={() => openModal(txn)}>Edit</button>
+                  <button class="btn-danger text-xs py-1 px-2" on:click={() => removeTxn(txn.id)}>Del</button>
+                </div>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    </div>
+  {/if}
+</div>
+
+<!-- Transaction Modal -->
+<Modal title={editingTxn ? 'Edit Transaction' : 'Add Transaction'} bind:open={showModal}>
+  <form on:submit|preventDefault={save} class="space-y-4">
+    <div>
+      <label class="label">Customer *</label>
+      <select class="input" bind:value={form.customerId} required>
+        <option value="">Select customer...</option>
+        {#each customers as c}
+          <option value={c.id}>{c.name}</option>
+        {/each}
+      </select>
+    </div>
+    <div>
+      <label class="label">Booking (optional)</label>
+      <select class="input" bind:value={form.bookingId}>
+        <option value="">None</option>
+        {#each activeBookings.filter(b => !form.customerId || b.customerId === form.customerId) as b}
+          <option value={b.id}>Bed {b.bedNumber} – ₹{b.rentPerMonth}/mo</option>
+        {/each}
+      </select>
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="label">Type</label>
+        <select class="input" bind:value={form.type}>
+          <option value="rent">Rent</option>
+          <option value="deposit">Deposit</option>
+          <option value="advance">Advance</option>
+          <option value="refund">Refund</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+      <div>
+        <label class="label">Amount (₹) *</label>
+        <input class="input" type="number" bind:value={form.amount} min="0" required />
+      </div>
+    </div>
+    <div>
+      <label class="label">Period</label>
+      <input class="input" bind:value={form.period} placeholder="e.g., March 2026" />
+    </div>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="label">Due Date</label>
+        <input class="input" type="date" bind:value={form.dueDate} />
+      </div>
+      <div>
+        <label class="label">Status</label>
+        <select class="input" bind:value={form.status}>
+          <option value="pending">Pending</option>
+          <option value="paid">Paid</option>
+        </select>
+      </div>
+    </div>
+    {#if form.status === 'paid'}
+      <div>
+        <label class="label">Paid On</label>
+        <input class="input" type="date" bind:value={form.paidOn} />
+      </div>
+    {/if}
+    <div>
+      <label class="label">Notes</label>
+      <textarea class="input" rows="2" bind:value={form.notes} placeholder="Optional notes..."></textarea>
+    </div>
+    <div class="flex gap-3 pt-2">
+      <button type="submit" class="btn-primary flex-1">{editingTxn ? 'Update' : 'Add'}</button>
+      <button type="button" class="btn-secondary flex-1" on:click={() => showModal = false}>Cancel</button>
+    </div>
+  </form>
+</Modal>
