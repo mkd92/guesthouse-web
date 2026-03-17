@@ -6,7 +6,8 @@ export const userProfile = writable(null);
 export const authLoading = writable(true);
 
 async function loadProfile(uid) {
-  const { data } = await supabase.from('users').select('id,name,email,role').eq('id', uid).maybeSingle();
+  const { data, error } = await supabase.from('users').select('id,name,email,role').eq('id', uid).maybeSingle();
+  console.log('[loadProfile] uid:', uid, 'data:', data, 'error:', error);
   if (data) {
     userProfile.set({ id: data.id, name: data.name, email: data.email, role: data.role });
   }
