@@ -279,7 +279,7 @@
                 {customer.name.charAt(0).toUpperCase()}
               </div>
               <div class="min-w-0">
-                <p class="font-semibold text-gray-900 truncate">{customer.name}</p>
+                <p class="font-semibold text-gray-900 break-words">{customer.name}</p>
                 {#if customer.email}
                   <p class="text-xs text-gray-400 truncate">{customer.email}</p>
                 {/if}
