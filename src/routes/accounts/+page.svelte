@@ -94,6 +94,7 @@
     transfers = tfrs;
 
     // Load all transactions and expenses to compute balances client-side
+    // Income entries are stored as transactions with type='income', status='paid' — already captured
     const [txnRes, expRes] = await Promise.all([
       supabase.from('transactions').select('account_id, amount, status').eq('status', 'paid'),
       supabase.from('expenses').select('account_id, amount')
@@ -191,11 +192,14 @@
       _sort: account.createdAt || '1970-01-01'
     });
 
-    // Paid transactions
+    // Paid transactions (rent + income)
     for (const t of txnRes.data || []) {
+      const description = t.type === 'income'
+        ? `Income — ${t.category ? t.category + ': ' : ''}${t.description || t.notes || ''}`.trimEnd()
+        : `Rent — ${t.customer_name || ''} (${t.period || ''})`.trim();
       entries.push({
         date: t.paid_on || t.created_at,
-        description: `Rent — ${t.customer_name || ''} (${t.period || ''})`.trim(),
+        description,
         in: t.amount,
         out: null,
         _sort: t.paid_on || t.created_at

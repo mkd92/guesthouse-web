@@ -257,3 +257,37 @@ CREATE POLICY "transfers_all" ON public.account_transfers FOR ALL TO authenticat
 -- Link rent payments and expenses to accounts
 ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES public.accounts(id);
 ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES public.accounts(id);
+
+-- ─── CATEGORIES ───────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.categories (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name       TEXT NOT NULL,
+  type       TEXT NOT NULL CHECK (type IN ('income', 'expense')),
+  color      TEXT DEFAULT 'blue',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "categories_all" ON public.categories FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+INSERT INTO public.categories (name, type, color) VALUES
+  ('Maintenance',    'expense', 'yellow'),
+  ('Utility',        'expense', 'blue'),
+  ('Tax',            'expense', 'red'),
+  ('Insurance',      'expense', 'green'),
+  ('Staff',          'expense', 'blue'),
+  ('Loan Repayment', 'expense', 'red'),
+  ('Other',          'expense', 'yellow')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.categories (name, type, color) VALUES
+  ('Business Income', 'income', 'green'),
+  ('Interest',        'income', 'blue'),
+  ('Dividend',        'income', 'green'),
+  ('Loan Received',   'income', 'yellow'),
+  ('Other Income',    'income', 'blue')
+ON CONFLICT DO NOTHING;
+
+-- Extend transactions to support income entries (type = 'income')
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS category    TEXT DEFAULT '';
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '';

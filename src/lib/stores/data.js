@@ -302,6 +302,64 @@ export async function deleteExpense(id) {
   if (error) throw error;
 }
 
+// ─── CATEGORIES ───────────────────────────────────────────────────────────────
+
+export async function getCategories(type = null) {
+  let q = supabase.from('categories').select('*').order('name');
+  if (type) q = q.eq('type', type);
+  const { data, error } = await q;
+  if (error) throw error;
+  return cam(data);
+}
+
+export async function addCategory(data) {
+  const { data: row, error } = await supabase.from('categories').insert(snk(data)).select().single();
+  if (error) throw error;
+  return cam(row);
+}
+
+export async function updateCategory(id, data) {
+  const { error } = await supabase.from('categories').update(snk(data)).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteCategory(id) {
+  const { error } = await supabase.from('categories').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── INCOME (stored in transactions as type='income') ─────────────────────────
+
+export async function getIncome(filters = {}) {
+  let q = supabase.from('transactions').select('*').eq('type', 'income')
+    .order('paid_on', { ascending: false });
+  if (filters.propertyId) q = q.eq('property_id', filters.propertyId);
+  const { data, error } = await q;
+  if (error) throw error;
+  return cam(data);
+}
+
+export async function addIncome(data) {
+  const { date, ...rest } = data;
+  const { data: row, error } = await supabase.from('transactions')
+    .insert(snk({ ...rest, type: 'income', status: 'paid', paidOn: date }))
+    .select().single();
+  if (error) throw error;
+  return cam(row);
+}
+
+export async function updateIncome(id, data) {
+  const { date, ...rest } = data;
+  const { error } = await supabase.from('transactions')
+    .update(snk({ ...rest, paidOn: date })).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteIncome(id) {
+  const { error } = await supabase.from('transactions').delete().eq('id', id);
+  if (error) throw error;
+}
+
 // ─── MAINTENANCE ──────────────────────────────────────────────────────────────
 
 export async function getMaintenanceRequests(filters = {}) {
