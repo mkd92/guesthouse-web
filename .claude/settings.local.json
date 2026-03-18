@@ -10,7 +10,18 @@
       "Bash(vercel env:*)",
       "Bash(vercel --prod)",
       "Bash(node import-customers.mjs)",
-      "Bash(gh auth:*)"
+      "Bash(gh auth:*)",
+      "Bash(vercel --prod --yes)",
+      "Bash(node:*)",
+      "Bash(claude doctor:*)",
+      "Bash(vercel --version)",
+      "Bash(find '/Users/mkd92/Documents/Code/claude /rentrelay/guesthouse-web/src/routes' -type f -name *.svelte)",
+      "Bash(pkill -f \"vite dev\")",
+      "Bash(gh repo:*)",
+      "Bash(git --version)",
+      "Bash(brew install:*)",
+      "Bash(rm firebase.json .firebaserc firestore.rules firestore.indexes.json)",
+      "Bash(rm -rf functions/)"
     ]
   }
 }
