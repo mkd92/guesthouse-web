@@ -14,6 +14,7 @@
   let accounts = [];
   let loading = true;
   let filter = 'all'; // all, pending, paid
+  let selectedType = '';
   let selectedPropertyId = '';
   let showModal = false;
   let editingTxn = null;
@@ -151,8 +152,9 @@
     });
   }
 
-  $: totalPending = transactions.filter(t => t.status === 'pending').reduce((s, t) => s + t.amount, 0);
-  $: totalPaid = transactions.filter(t => t.status === 'paid').reduce((s, t) => s + t.amount, 0);
+  $: filtered = selectedType ? transactions.filter(t => t.type === selectedType) : transactions;
+  $: totalPending = filtered.filter(t => t.status === 'pending').reduce((s, t) => s + t.amount, 0);
+  $: totalPaid = filtered.filter(t => t.status === 'paid').reduce((s, t) => s + t.amount, 0);
 </script>
 
 <div class="p-4 md:p-6 space-y-5 max-w-4xl mx-auto">
@@ -176,7 +178,7 @@
     </div>
     <div class="card text-center sm:block hidden">
       <p class="text-sm text-gray-500">Total Records</p>
-      <p class="text-2xl font-bold text-gray-900">{transactions.length}</p>
+      <p class="text-2xl font-bold text-gray-900">{filtered.length}</p>
     </div>
   </div>
 
@@ -193,6 +195,14 @@
         </button>
       {/each}
     </div>
+    <select class="input w-auto" bind:value={selectedType}>
+      <option value="">All Types</option>
+      <option value="rent">Rent</option>
+      <option value="deposit">Deposit</option>
+      <option value="advance">Advance</option>
+      <option value="refund">Refund</option>
+      <option value="other">Other</option>
+    </select>
     <select class="input w-auto" bind:value={selectedPropertyId}>
       <option value="">All Properties</option>
       {#each properties as p}
@@ -207,7 +217,7 @@
         <div class="card animate-pulse h-14"></div>
       {/each}
     </div>
-  {:else if transactions.length === 0}
+  {:else if filtered.length === 0}
     <div class="card text-center py-16">
       <p class="text-4xl mb-3">💰</p>
       <p class="text-gray-500">No transactions found.</p>
@@ -227,7 +237,7 @@
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          {#each transactions as txn}
+          {#each filtered as txn}
             {@const phone = customerPhone(txn.customerId)}
             <tr class="hover:bg-gray-50">
               <td class="px-4 py-3">
