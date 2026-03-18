@@ -24,12 +24,11 @@
 
   let form = {
     customerId: '',
-    bookingId: '',
     amount: '',
     type: 'rent',
     period: format(new Date(), 'MMMM yyyy'),
     status: 'pending',
-    dueDate: format(new Date(), 'yyyy-MM-dd'),
+    accountId: '',
     paidOn: '',
     notes: ''
   };
@@ -57,22 +56,20 @@
     editingTxn = txn;
     form = txn ? {
       customerId: txn.customerId,
-      bookingId: txn.bookingId || '',
       amount: txn.amount,
       type: txn.type,
       period: txn.period,
       status: txn.status,
-      dueDate: txn.dueDate?.toDate ? format(txn.dueDate.toDate(), 'yyyy-MM-dd') : (txn.dueDate || ''),
+      accountId: txn.accountId || '',
       paidOn: txn.paidOn?.toDate ? format(txn.paidOn.toDate(), 'yyyy-MM-dd') : (txn.paidOn || ''),
       notes: txn.notes || ''
     } : {
       customerId: '',
-      bookingId: '',
       amount: '',
       type: 'rent',
       period: format(new Date(), 'MMMM yyyy'),
       status: 'pending',
-      dueDate: format(new Date(), 'yyyy-MM-dd'),
+      accountId: '',
       paidOn: '',
       notes: ''
     };
@@ -81,14 +78,14 @@
 
   async function save() {
     const customer = customers.find(c => c.id === form.customerId);
-    const booking = activeBookings.find(b => b.id === form.bookingId);
     const data = {
       ...form,
+      bookingId: null,
       customerName: customer?.name || '',
-      bedNumber: booking?.bedNumber || '',
       amount: Number(form.amount),
-      dueDate: form.dueDate ? new Date(form.dueDate) : null,
+      dueDate: new Date(),
       paidOn: form.paidOn ? new Date(form.paidOn) : null,
+      accountId: form.status === 'paid' ? (form.accountId || null) : null,
       createdBy: $user.uid
     };
     if (editingTxn) {
@@ -326,15 +323,6 @@
         {/each}
       </select>
     </div>
-    <div>
-      <label class="label">Booking (optional)</label>
-      <select class="input" bind:value={form.bookingId}>
-        <option value="">None</option>
-        {#each activeBookings.filter(b => !form.customerId || b.customerId === form.customerId) as b}
-          <option value={b.id}>Bed {b.bedNumber} – ₹{b.rentPerMonth}/mo</option>
-        {/each}
-      </select>
-    </div>
     <div class="grid grid-cols-2 gap-3">
       <div>
         <label class="label">Type</label>
@@ -355,20 +343,33 @@
       <label class="label">Period</label>
       <input class="input" bind:value={form.period} placeholder="e.g., March 2026" />
     </div>
-    <div class="grid grid-cols-2 gap-3">
-      <div>
-        <label class="label">Due Date</label>
-        <input class="input" type="date" bind:value={form.dueDate} />
-      </div>
-      <div>
-        <label class="label">Status</label>
-        <select class="input" bind:value={form.status}>
-          <option value="pending">Pending</option>
-          <option value="paid">Paid</option>
-        </select>
+    <div>
+      <label class="label">Status</label>
+      <div class="flex gap-2">
+        <button
+          type="button"
+          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-colors
+            {form.status === 'pending' ? 'bg-red-50 border-red-300 text-red-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}"
+          on:click={() => { form.status = 'pending'; form.accountId = ''; form.paidOn = ''; }}
+        >Pending</button>
+        <button
+          type="button"
+          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-colors
+            {form.status === 'paid' ? 'bg-green-50 border-green-300 text-green-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}"
+          on:click={() => { form.status = 'paid'; if (!form.paidOn) form.paidOn = format(new Date(), 'yyyy-MM-dd'); }}
+        >Paid</button>
       </div>
     </div>
     {#if form.status === 'paid'}
+      <div>
+        <label class="label">Account</label>
+        <select class="input" bind:value={form.accountId}>
+          <option value="">Select account...</option>
+          {#each accounts as a}
+            <option value={a.id}>{a.name} ({a.type})</option>
+          {/each}
+        </select>
+      </div>
       <div>
         <label class="label">Paid On</label>
         <input class="input" type="date" bind:value={form.paidOn} />
@@ -376,7 +377,7 @@
     {/if}
     <div>
       <label class="label">Notes</label>
-      <textarea class="input" rows="2" bind:value={form.notes} placeholder="Optional notes..."></textarea>
+      <input class="input" bind:value={form.notes} placeholder="Optional notes..." />
     </div>
     <div class="flex gap-3 pt-2">
       <button type="submit" class="btn-primary flex-1">{editingTxn ? 'Update' : 'Add'}</button>
