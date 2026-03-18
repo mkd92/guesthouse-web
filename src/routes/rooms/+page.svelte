@@ -220,8 +220,8 @@
     {#if properties.length > 0}
       <div>
         <label class="label">Property</label>
-        <select class="input" bind:value={roomForm.propertyId}>
-          <option value="">No property</option>
+        <select class="input" bind:value={roomForm.propertyId} required>
+          <option value="">Select property...</option>
           {#each properties as p}
             <option value={p.id}>{p.name}</option>
           {/each}
