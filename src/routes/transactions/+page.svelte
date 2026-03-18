@@ -20,6 +20,7 @@
   let showMarkPaidModal = false;
   let markPaidTxn = null;
   let markPaidForm = { accountId: '', paidOn: format(new Date(), 'yyyy-MM-dd') };
+  let markPaidSubmitting = false;
 
   let form = {
     customerId: '',
@@ -215,32 +216,38 @@
   }
 
   async function confirmMarkPaid() {
-    const paid = Number(markPaidForm.amount);
-    const full = markPaidTxn.amount;
-    await updateTransaction(markPaidTxn.id, {
-      status: 'paid',
-      amount: paid,
-      paidOn: markPaidForm.paidOn ? new Date(markPaidForm.paidOn) : new Date(),
-      accountId: markPaidForm.accountId || null
-    });
-    if (paid < full) {
-      await addTransaction({
-        customerId: markPaidTxn.customerId,
-        customerName: markPaidTxn.customerName,
-        amount: full - paid,
-        type: markPaidTxn.type,
-        period: markPaidTxn.period,
-        status: 'pending',
-        dueDate: new Date(),
-        bookingId: null,
-        propertyId: markPaidTxn.propertyId || null,
-        propertyName: markPaidTxn.propertyName || null,
-        notes: `Balance from partial payment (original: ₹${full})`
+    if (markPaidSubmitting) return;
+    markPaidSubmitting = true;
+    try {
+      const paid = Number(markPaidForm.amount);
+      const full = Number(markPaidTxn.amount);
+      await updateTransaction(markPaidTxn.id, {
+        status: 'paid',
+        amount: paid,
+        paidOn: markPaidForm.paidOn ? new Date(markPaidForm.paidOn) : new Date(),
+        accountId: markPaidForm.accountId || null
       });
+      if (paid < full) {
+        await addTransaction({
+          customerId: markPaidTxn.customerId,
+          customerName: markPaidTxn.customerName,
+          amount: full - paid,
+          type: markPaidTxn.type,
+          period: markPaidTxn.period,
+          status: 'pending',
+          dueDate: new Date(),
+          bookingId: null,
+          propertyId: markPaidTxn.propertyId || null,
+          propertyName: markPaidTxn.propertyName || null,
+          notes: `Balance from partial payment (original: ₹${full})`
+        });
+      }
+      showMarkPaidModal = false;
+      markPaidTxn = null;
+      await load();
+    } finally {
+      markPaidSubmitting = false;
     }
-    showMarkPaidModal = false;
-    markPaidTxn = null;
-    await load();
   }
 
   async function removeTxn(id) {
@@ -441,8 +448,10 @@
       <input class="input" type="date" bind:value={markPaidForm.paidOn} />
     </div>
     <div class="flex gap-3 pt-2">
-      <button type="submit" class="btn-primary flex-1">Confirm Paid</button>
-      <button type="button" class="btn-secondary flex-1" on:click={() => showMarkPaidModal = false}>Cancel</button>
+      <button type="submit" class="btn-primary flex-1" disabled={markPaidSubmitting}>
+        {markPaidSubmitting ? 'Saving…' : 'Confirm Paid'}
+      </button>
+      <button type="button" class="btn-secondary flex-1" disabled={markPaidSubmitting} on:click={() => showMarkPaidModal = false}>Cancel</button>
     </div>
   </form>
 </Modal>
