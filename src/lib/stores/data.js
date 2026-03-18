@@ -325,6 +325,65 @@ export async function updateMaintenanceRequest(id, data) {
   if (error) throw error;
 }
 
+// ─── ACCOUNTS ─────────────────────────────────────────────────────────────────
+
+export async function getAccounts() {
+  const { data, error } = await supabase.from('accounts').select('*').order('name');
+  if (error) throw error;
+  return cam(data);
+}
+
+export async function addAccount(data) {
+  const { data: row, error } = await supabase.from('accounts').insert(snk(data)).select().single();
+  if (error) throw error;
+  return cam(row);
+}
+
+export async function updateAccount(id, data) {
+  const { error } = await supabase.from('accounts').update(snk(data)).eq('id', id);
+  if (error) throw error;
+}
+
+export async function deleteAccount(id) {
+  const { error } = await supabase.from('accounts').delete().eq('id', id);
+  if (error) throw error;
+}
+
+// ─── TRANSFERS ────────────────────────────────────────────────────────────────
+
+export async function getTransfers() {
+  const { data, error } = await supabase.from('account_transfers').select('*').order('date', { ascending: false });
+  if (error) throw error;
+  return cam(data);
+}
+
+export async function addTransfer(data) {
+  const { data: row, error } = await supabase.from('account_transfers').insert(snk(data)).select().single();
+  if (error) throw error;
+  return cam(row);
+}
+
+export async function deleteTransfer(id) {
+  const { error } = await supabase.from('account_transfers').delete().eq('id', id);
+  if (error) throw error;
+}
+
+export async function getAccountBalance(accountId) {
+  const [accountRes, txnRes, transfersInRes, transfersOutRes, expensesRes] = await Promise.all([
+    supabase.from('accounts').select('opening_balance').eq('id', accountId).single(),
+    supabase.from('transactions').select('amount').eq('account_id', accountId).eq('status', 'paid'),
+    supabase.from('account_transfers').select('amount').eq('to_account_id', accountId),
+    supabase.from('account_transfers').select('amount').eq('from_account_id', accountId),
+    supabase.from('expenses').select('amount').eq('account_id', accountId),
+  ]);
+  const opening = accountRes.data?.opening_balance || 0;
+  const inflow = (txnRes.data || []).reduce((s, r) => s + (r.amount || 0), 0)
+    + (transfersInRes.data || []).reduce((s, r) => s + (r.amount || 0), 0);
+  const outflow = (transfersOutRes.data || []).reduce((s, r) => s + (r.amount || 0), 0)
+    + (expensesRes.data || []).reduce((s, r) => s + (r.amount || 0), 0);
+  return opening + inflow - outflow;
+}
+
 // ─── DASHBOARD STATS ──────────────────────────────────────────────────────────
 
 export async function getDashboardStats(propertyId = null) {

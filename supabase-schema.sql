@@ -228,3 +228,32 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+-- ─── ACCOUNTS ─────────────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS public.accounts (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name             TEXT NOT NULL,
+  type             TEXT NOT NULL DEFAULT 'cash' CHECK (type IN ('cash','bank','credit_card')),
+  opening_balance  NUMERIC DEFAULT 0,
+  notes            TEXT DEFAULT '',
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.accounts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "accounts_all" ON public.accounts FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+CREATE TABLE IF NOT EXISTS public.account_transfers (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  from_account_id  UUID REFERENCES public.accounts(id),
+  to_account_id    UUID REFERENCES public.accounts(id),
+  amount           NUMERIC NOT NULL,
+  date             DATE NOT NULL DEFAULT CURRENT_DATE,
+  notes            TEXT DEFAULT '',
+  created_at       TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE public.account_transfers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "transfers_all" ON public.account_transfers FOR ALL TO authenticated USING (true) WITH CHECK (true);
+
+-- Link rent payments and expenses to accounts
+ALTER TABLE public.transactions ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES public.accounts(id);
+ALTER TABLE public.expenses ADD COLUMN IF NOT EXISTS account_id UUID REFERENCES public.accounts(id);

@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { getTransactions, addTransaction, updateTransaction, deleteTransaction, getCustomers, getBookings, getProperties } from '$lib/stores/data';
+  import { getTransactions, addTransaction, updateTransaction, deleteTransaction, getCustomers, getBookings, getProperties, getAccounts } from '$lib/stores/data';
   import { user } from '$lib/stores/auth';
   import Modal from '$lib/components/Modal.svelte';
   import WhatsAppButton from '$lib/components/WhatsAppButton.svelte';
@@ -11,11 +11,15 @@
   let customers = [];
   let activeBookings = [];
   let properties = [];
+  let accounts = [];
   let loading = true;
   let filter = 'all'; // all, pending, paid
   let selectedPropertyId = '';
   let showModal = false;
   let editingTxn = null;
+  let showMarkPaidModal = false;
+  let markPaidTxn = null;
+  let markPaidForm = { accountId: '', paidOn: format(new Date(), 'yyyy-MM-dd') };
 
   let form = {
     customerId: '',
@@ -34,11 +38,12 @@
     const filters = {};
     if (filter !== 'all') filters.status = filter;
     if (selectedPropertyId) filters.propertyId = selectedPropertyId;
-    [transactions, customers, activeBookings, properties] = await Promise.all([
+    [transactions, customers, activeBookings, properties, accounts] = await Promise.all([
       getTransactions(filters),
       getCustomers(),
       getBookings('active'),
-      getProperties()
+      getProperties(),
+      getAccounts()
     ]);
     loading = false;
   }
@@ -94,8 +99,20 @@
     await load();
   }
 
-  async function markPaid(txn) {
-    await updateTransaction(txn.id, { status: 'paid', paidOn: new Date() });
+  function openMarkPaid(txn) {
+    markPaidTxn = txn;
+    markPaidForm = { accountId: accounts[0]?.id || '', paidOn: format(new Date(), 'yyyy-MM-dd') };
+    showMarkPaidModal = true;
+  }
+
+  async function confirmMarkPaid() {
+    await updateTransaction(markPaidTxn.id, {
+      status: 'paid',
+      paidOn: markPaidForm.paidOn ? new Date(markPaidForm.paidOn) : new Date(),
+      accountId: markPaidForm.accountId || null
+    });
+    showMarkPaidModal = false;
+    markPaidTxn = null;
     await load();
   }
 
@@ -241,7 +258,7 @@
               <td class="px-4 py-3">
                 <div class="flex gap-1 justify-end items-center">
                   {#if txn.status === 'pending'}
-                    <button class="btn-success text-xs py-1 px-2" on:click={() => markPaid(txn)}>Mark Paid</button>
+                    <button class="btn-success text-xs py-1 px-2" on:click={() => openMarkPaid(txn)}>Mark Paid</button>
                     {#if phone}
                       <WhatsAppButton {phone} message={getRentReminderMsg(txn)} label="Remind" />
                     {/if}
@@ -257,6 +274,35 @@
     </div>
   {/if}
 </div>
+
+<!-- Mark Paid Modal -->
+<Modal title="Mark as Paid" bind:open={showMarkPaidModal}>
+  <form on:submit|preventDefault={confirmMarkPaid} class="space-y-4">
+    {#if markPaidTxn}
+      <div class="p-3 rounded-lg" style="background: var(--bg-hover);">
+        <p class="font-medium text-sm" style="color: var(--text-1);">{markPaidTxn.customerName}</p>
+        <p class="text-xs mt-0.5" style="color: var(--text-3);">{markPaidTxn.period} · {formatCurrency(markPaidTxn.amount)}</p>
+      </div>
+    {/if}
+    <div>
+      <label class="label">Collected into Account *</label>
+      <select class="input" bind:value={markPaidForm.accountId} required>
+        <option value="">Select account...</option>
+        {#each accounts as a}
+          <option value={a.id}>{a.name} ({a.type})</option>
+        {/each}
+      </select>
+    </div>
+    <div>
+      <label class="label">Paid On</label>
+      <input class="input" type="date" bind:value={markPaidForm.paidOn} />
+    </div>
+    <div class="flex gap-3 pt-2">
+      <button type="submit" class="btn-primary flex-1">Confirm Paid</button>
+      <button type="button" class="btn-secondary flex-1" on:click={() => showMarkPaidModal = false}>Cancel</button>
+    </div>
+  </form>
+</Modal>
 
 <!-- Transaction Modal -->
 <Modal title={editingTxn ? 'Edit Transaction' : 'Add Transaction'} bind:open={showModal}>

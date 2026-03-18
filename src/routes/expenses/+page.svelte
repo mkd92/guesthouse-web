@@ -1,12 +1,13 @@
 <script>
   import { onMount } from 'svelte';
-  import { getExpenses, addExpense, deleteExpense, getProperties } from '$lib/stores/data';
+  import { getExpenses, addExpense, deleteExpense, getProperties, getAccounts } from '$lib/stores/data';
   import { user } from '$lib/stores/auth';
   import Modal from '$lib/components/Modal.svelte';
   import { format } from 'date-fns';
 
   let expenses = [];
   let properties = [];
+  let accounts = [];
   let loading = true;
   let selectedPropertyId = '';
   let showModal = false;
@@ -14,7 +15,7 @@
   let form = {
     propertyId: '', category: 'maintenance',
     description: '', amount: '', date: format(new Date(), 'yyyy-MM-dd'),
-    receiptUrl: '', notes: ''
+    accountId: '', receiptUrl: '', notes: ''
   };
 
   const categories = ['maintenance', 'utility', 'tax', 'insurance', 'staff', 'other'];
@@ -25,9 +26,10 @@
 
   async function load() {
     loading = true;
-    [expenses, properties] = await Promise.all([
+    [expenses, properties, accounts] = await Promise.all([
       getExpenses(selectedPropertyId ? { propertyId: selectedPropertyId } : {}),
-      getProperties()
+      getProperties(),
+      getAccounts()
     ]);
     loading = false;
   }
@@ -40,7 +42,7 @@
     form = {
       propertyId: selectedPropertyId || (properties[0]?.id || ''),
       category: 'maintenance', description: '', amount: '',
-      date: format(new Date(), 'yyyy-MM-dd'), receiptUrl: '', notes: ''
+      date: format(new Date(), 'yyyy-MM-dd'), accountId: '', receiptUrl: '', notes: ''
     };
     showModal = true;
   }
@@ -51,6 +53,7 @@
       ...form,
       propertyName: property?.name || '',
       amount: Number(form.amount),
+      accountId: form.accountId || null,
       createdBy: $user.uid
     });
     showModal = false;
@@ -196,6 +199,15 @@
         <label class="label">Date *</label>
         <input class="input" type="date" bind:value={form.date} required />
       </div>
+    </div>
+    <div>
+      <label class="label">Account (optional)</label>
+      <select class="input" bind:value={form.accountId}>
+        <option value="">Not linked</option>
+        {#each accounts as a}
+          <option value={a.id}>{a.name} ({a.type})</option>
+        {/each}
+      </select>
     </div>
     <div>
       <label class="label">Receipt URL</label>
