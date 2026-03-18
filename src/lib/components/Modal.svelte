@@ -46,7 +46,7 @@
           </svg>
         </button>
       </div>
-      <div class="flex-1 overflow-y-auto px-6 py-5 safe-bottom">
+      <div class="flex-1 overflow-y-auto px-6 pt-5 pb-8 safe-bottom">
         <slot />
       </div>
     </div>

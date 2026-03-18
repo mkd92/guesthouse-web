@@ -422,7 +422,7 @@
     {/if}
     <div>
       <label class="label">Amount Collected (₹) *</label>
-      <input class="input" type="number" bind:value={markPaidForm.amount} min="1" max={markPaidTxn?.amount} required />
+      <input class="input" type="number" bind:value={markPaidForm.amount} min="1" required />
       {#if markPaidTxn && Number(markPaidForm.amount) > 0 && Number(markPaidForm.amount) < markPaidTxn.amount}
         <p class="text-xs text-amber-600 mt-1">{formatCurrency(markPaidTxn.amount - Number(markPaidForm.amount))} will remain as a new pending transaction</p>
       {/if}
