@@ -44,6 +44,45 @@
 
   $: splitTotal = splitRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
+  // Customer combobox
+  let customerSearch = '';
+  let customerSuggestionsVisible = false;
+  let customerHighlightIdx = -1;
+  $: customerSuggestions = customerSearch.trim()
+    ? customers.filter(c => c.name.toLowerCase().includes(customerSearch.toLowerCase()))
+    : customers;
+
+  function selectCustomer(c) {
+    customerSearch = c.name;
+    form.customerId = c.id;
+    customerSuggestionsVisible = false;
+    customerHighlightIdx = -1;
+    onCustomerChange(c.id);
+  }
+
+  function onCustomerKeydown(e) {
+    if (!customerSuggestionsVisible) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') { customerSuggestionsVisible = true; customerHighlightIdx = 0; e.preventDefault(); }
+      return;
+    }
+    if (e.key === 'ArrowDown') { customerHighlightIdx = Math.min(customerHighlightIdx + 1, customerSuggestions.length - 1); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { customerHighlightIdx = Math.max(customerHighlightIdx - 1, 0); e.preventDefault(); }
+    else if (e.key === 'Enter') {
+      if (customerHighlightIdx >= 0 && customerSuggestions[customerHighlightIdx]) {
+        selectCustomer(customerSuggestions[customerHighlightIdx]);
+        e.preventDefault();
+      }
+    } else if (e.key === 'Escape') { customerSuggestionsVisible = false; }
+  }
+
+  function onCustomerInput() {
+    form.customerId = '';
+    customerSuggestionsVisible = true;
+    customerHighlightIdx = -1;
+    customerPendingTxns = [];
+    linkedPendingIds = new Set();
+  }
+
   // Single mode — pending transactions for the selected customer
   let customerPendingTxns = [];
   let linkedPendingIds = new Set();
@@ -116,6 +155,9 @@
 
   function openModal(txn = null) {
     editingTxn = txn;
+    customerSearch = txn ? (txn.customerName || '') : '';
+    customerSuggestionsVisible = false;
+    customerHighlightIdx = -1;
     form = txn ? {
       customerId: txn.customerId,
       amount: txn.amount,
@@ -188,6 +230,7 @@
   }
 
   async function save() {
+    if (!form.customerId) { alert('Please select a customer from the list.'); return; }
     if (linkedPendingIds.size > 0) {
       for (const id of linkedPendingIds) {
         await updateTransaction(id, {
@@ -550,12 +593,36 @@
     <form on:submit|preventDefault={save} class="space-y-4">
       <div>
         <label class="label">Customer *</label>
-        <select class="input" bind:value={form.customerId} on:change={() => onCustomerChange(form.customerId)} required>
-          <option value="">Select customer...</option>
-          {#each customers as c}
-            <option value={c.id}>{c.name}</option>
-          {/each}
-        </select>
+        <div class="relative">
+          <input
+            class="input"
+            type="text"
+            placeholder="Search customer..."
+            bind:value={customerSearch}
+            on:input={onCustomerInput}
+            on:focus={() => { customerSuggestionsVisible = true; }}
+            on:blur={() => setTimeout(() => { customerSuggestionsVisible = false; }, 150)}
+            on:keydown={onCustomerKeydown}
+            autocomplete="off"
+          />
+          <input type="hidden" bind:value={form.customerId} required />
+          {#if customerSuggestionsVisible && customerSuggestions.length > 0}
+            <ul class="absolute z-50 w-full mt-1 rounded-lg border shadow-lg max-h-52 overflow-y-auto" style="background: var(--surface-2); border-color: var(--border-1);">
+              {#each customerSuggestions as c, i}
+                <li
+                  class="px-3 py-2 cursor-pointer text-sm"
+                  class:bg-amber-500={i === customerHighlightIdx}
+                  class:text-white={i === customerHighlightIdx}
+                  style={i !== customerHighlightIdx ? 'color: var(--text-1);' : ''}
+                  on:mousedown={() => selectCustomer(c)}
+                  on:mouseover={() => customerHighlightIdx = i}
+                >
+                  {c.name}
+                </li>
+              {/each}
+            </ul>
+          {/if}
+        </div>
         {#if customerPendingTxns.length > 0}
           <div class="mt-2 rounded-lg border border-orange-400 bg-orange-500 p-3 space-y-2">
             <div class="flex items-center justify-between">
