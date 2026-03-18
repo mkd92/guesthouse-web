@@ -22,8 +22,11 @@
   let showCheckInModal = false;
   let showCheckOutModal = false;
   let showLeaseModal = false;
+  let showEditBookingModal = false;
   let editingCustomer = null;
   let selectedCustomer = null;
+  let editingBooking = null;
+  let editBookingForm = { rentPerMonth: '', deposit: '' };
 
   // Tenant type maps (customerId -> type)
   let pgCustomerIds = new Set();
@@ -214,6 +217,26 @@
     await load();
   }
 
+  async function openEditBooking(customer) {
+    const bookings = await getBookingsByCustomer(customer.id);
+    editingBooking = bookings.find(b => b.status === 'active');
+    if (!editingBooking) return;
+    editBookingForm = {
+      rentPerMonth: editingBooking.rentPerMonth,
+      deposit: editingBooking.deposit
+    };
+    showEditBookingModal = true;
+  }
+
+  async function doEditBooking() {
+    await updateBooking(editingBooking.id, {
+      rentPerMonth: Number(editBookingForm.rentPerMonth),
+      deposit: Number(editBookingForm.deposit) || 0
+    });
+    showEditBookingModal = false;
+    await load();
+  }
+
   function formatDate(ts) {
     if (!ts) return '—';
     const d = ts.toDate ? ts.toDate() : new Date(ts);
@@ -310,6 +333,7 @@
           <div class="mt-3 flex gap-2 flex-wrap">
             {#if pgCustomerIds.has(customer.id)}
               <button class="btn-danger text-xs py-1.5 px-3" on:click={() => openCheckOut(customer)}>Check Out</button>
+              <button class="btn-secondary text-xs py-1.5 px-3" on:click={() => openEditBooking(customer)}>Edit Rent</button>
             {:else}
               <button class="btn-success text-xs py-1.5 px-3" on:click={() => openCheckIn(customer)}>Assign Bed</button>
             {/if}
@@ -420,6 +444,24 @@
       <p class="text-gray-500">No active booking found.</p>
     {/if}
   </div>
+</Modal>
+
+<!-- Edit Booking Modal -->
+<Modal title="Edit Booking – {editingBooking?.bedNumber}" bind:open={showEditBookingModal}>
+  <form on:submit|preventDefault={doEditBooking} class="space-y-4">
+    <div>
+      <label class="label">Monthly Rent (₹)</label>
+      <input class="input" type="number" bind:value={editBookingForm.rentPerMonth} min="0" required />
+    </div>
+    <div>
+      <label class="label">Advance / Deposit (₹)</label>
+      <input class="input" type="number" bind:value={editBookingForm.deposit} min="0" />
+    </div>
+    <div class="flex gap-3 pt-2">
+      <button type="submit" class="btn-primary flex-1">Save Changes</button>
+      <button type="button" class="btn-secondary flex-1" on:click={() => showEditBookingModal = false}>Cancel</button>
+    </div>
+  </form>
 </Modal>
 
 <!-- Create Lease Modal -->

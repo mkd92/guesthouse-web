@@ -17,9 +17,11 @@
   let activeTab = 'active'; // active, expired, terminated
   let showModal = false;
   let showTerminateModal = false;
+  let showEditLeaseModal = false;
   let editingLease = null;
   let terminatingLease = null;
   let terminateNotes = '';
+  let editLeaseForm = { rentPerMonth: '', depositAmount: '' };
 
   let form = {
     propertyId: '', unitId: '', customerId: '',
@@ -138,6 +140,24 @@
     showTerminateModal = true;
   }
 
+  function openEditLease(lease) {
+    editingLease = lease;
+    editLeaseForm = {
+      rentPerMonth: lease.rentPerMonth,
+      depositAmount: lease.depositAmount
+    };
+    showEditLeaseModal = true;
+  }
+
+  async function doEditLease() {
+    await updateLease(editingLease.id, {
+      rentPerMonth: Number(editLeaseForm.rentPerMonth),
+      depositAmount: Number(editLeaseForm.depositAmount) || 0
+    });
+    showEditLeaseModal = false;
+    await load();
+  }
+
   function formatDate(ts) {
     if (!ts) return '—';
     const d = ts.toDate ? ts.toDate() : new Date(ts);
@@ -223,7 +243,10 @@
               <td class="px-4 py-3 text-gray-500">{lease.leaseEnd ? formatDate(lease.leaseEnd) : 'Month-to-month'}</td>
               {#if activeTab === 'active'}
                 <td class="px-4 py-3">
-                  <button class="btn-danger text-xs py-1 px-2" on:click={() => openTerminate(lease)}>Terminate</button>
+                  <div class="flex gap-2">
+                    <button class="btn-secondary text-xs py-1 px-2" on:click={() => openEditLease(lease)}>Edit</button>
+                    <button class="btn-danger text-xs py-1 px-2" on:click={() => openTerminate(lease)}>Terminate</button>
+                  </div>
                 </td>
               {/if}
             </tr>
@@ -304,6 +327,24 @@
     <div class="flex gap-3 pt-2">
       <button type="submit" class="btn-primary flex-1">Create Lease</button>
       <button type="button" class="btn-secondary flex-1" on:click={() => showModal = false}>Cancel</button>
+    </div>
+  </form>
+</Modal>
+
+<!-- Edit Lease Modal -->
+<Modal title="Edit Lease – {editingLease?.unitName}" bind:open={showEditLeaseModal}>
+  <form on:submit|preventDefault={doEditLease} class="space-y-4">
+    <div>
+      <label class="label">Monthly Rent (₹)</label>
+      <input class="input" type="number" bind:value={editLeaseForm.rentPerMonth} min="0" required />
+    </div>
+    <div>
+      <label class="label">Advance / Deposit (₹)</label>
+      <input class="input" type="number" bind:value={editLeaseForm.depositAmount} min="0" />
+    </div>
+    <div class="flex gap-3 pt-2">
+      <button type="submit" class="btn-primary flex-1">Save Changes</button>
+      <button type="button" class="btn-secondary flex-1" on:click={() => showEditLeaseModal = false}>Cancel</button>
     </div>
   </form>
 </Modal>
