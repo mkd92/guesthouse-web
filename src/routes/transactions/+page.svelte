@@ -97,16 +97,34 @@
 
   function openMarkPaid(txn) {
     markPaidTxn = txn;
-    markPaidForm = { accountId: accounts[0]?.id || '', paidOn: format(new Date(), 'yyyy-MM-dd') };
+    markPaidForm = { accountId: accounts[0]?.id || '', paidOn: format(new Date(), 'yyyy-MM-dd'), amount: txn.amount };
     showMarkPaidModal = true;
   }
 
   async function confirmMarkPaid() {
+    const paid = Number(markPaidForm.amount);
+    const full = markPaidTxn.amount;
     await updateTransaction(markPaidTxn.id, {
       status: 'paid',
+      amount: paid,
       paidOn: markPaidForm.paidOn ? new Date(markPaidForm.paidOn) : new Date(),
       accountId: markPaidForm.accountId || null
     });
+    if (paid < full) {
+      await addTransaction({
+        customerId: markPaidTxn.customerId,
+        customerName: markPaidTxn.customerName,
+        amount: full - paid,
+        type: markPaidTxn.type,
+        period: markPaidTxn.period,
+        status: 'pending',
+        dueDate: new Date(),
+        bookingId: null,
+        propertyId: markPaidTxn.propertyId || null,
+        propertyName: markPaidTxn.propertyName || null,
+        notes: `Balance from partial payment (original: ₹${full})`
+      });
+    }
     showMarkPaidModal = false;
     markPaidTxn = null;
     await load();
@@ -286,9 +304,16 @@
     {#if markPaidTxn}
       <div class="p-3 rounded-lg" style="background: var(--bg-hover);">
         <p class="font-medium text-sm" style="color: var(--text-1);">{markPaidTxn.customerName}</p>
-        <p class="text-xs mt-0.5" style="color: var(--text-3);">{markPaidTxn.period} · {formatCurrency(markPaidTxn.amount)}</p>
+        <p class="text-xs mt-0.5" style="color: var(--text-3);">{markPaidTxn.period} · Due: {formatCurrency(markPaidTxn.amount)}</p>
       </div>
     {/if}
+    <div>
+      <label class="label">Amount Collected (₹) *</label>
+      <input class="input" type="number" bind:value={markPaidForm.amount} min="1" max={markPaidTxn?.amount} required />
+      {#if markPaidTxn && Number(markPaidForm.amount) > 0 && Number(markPaidForm.amount) < markPaidTxn.amount}
+        <p class="text-xs text-amber-600 mt-1">{formatCurrency(markPaidTxn.amount - Number(markPaidForm.amount))} will remain as a new pending transaction</p>
+      {/if}
+    </div>
     <div>
       <label class="label">Collected into Account *</label>
       <select class="input" bind:value={markPaidForm.accountId} required>
