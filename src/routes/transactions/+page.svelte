@@ -39,9 +39,61 @@
     accountId: '',
     paidOn: format(new Date(), 'yyyy-MM-dd'),
   };
-  let splitRows = [{ customerId: '', amount: '' }];
+  let splitRows = [{ customerId: '', amount: '', pendingTxns: [], linkedPendingId: '' }];
 
   $: splitTotal = splitRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
+  // Single mode — pending transactions for the selected customer
+  let customerPendingTxns = [];
+  let linkedPendingIds = new Set();
+
+  // Auto-fill amount and flip to paid when pending(s) are checked
+  $: if (linkedPendingIds.size > 0) {
+    const total = customerPendingTxns
+      .filter(t => linkedPendingIds.has(t.id))
+      .reduce((s, t) => s + t.amount, 0);
+    form.amount = total;
+    form.status = 'paid';
+    if (!form.paidOn) form.paidOn = format(new Date(), 'yyyy-MM-dd');
+  }
+
+  async function onCustomerChange(customerId) {
+    linkedPendingIds = new Set();
+    customerPendingTxns = [];
+    if (!customerId) return;
+    const all = await getTransactions({ customerId, status: 'pending' });
+    customerPendingTxns = all.slice().reverse(); // oldest first
+  }
+
+  function toggleLinkedPending(id) {
+    const next = new Set(linkedPendingIds);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    linkedPendingIds = next;
+  }
+
+  function autoLinkOldest() {
+    if (!customerPendingTxns.length) return;
+    linkedPendingIds = new Set([customerPendingTxns[0].id]);
+  }
+
+  async function onSplitCustomerChange(i, customerId) {
+    splitRows[i].linkedPendingId = '';
+    splitRows[i].pendingTxns = [];
+    if (customerId) {
+      const all = await getTransactions({ customerId, status: 'pending' });
+      splitRows[i].pendingTxns = all.slice().reverse(); // oldest first
+    }
+    splitRows = [...splitRows];
+  }
+
+  function autoLinkSplitRow(i) {
+    const row = splitRows[i];
+    if (!row.pendingTxns?.length) return;
+    const oldest = row.pendingTxns[0];
+    splitRows[i].linkedPendingId = oldest.id;
+    splitRows[i].amount = oldest.amount;
+    splitRows = [...splitRows];
+  }
 
   async function load() {
     loading = true;
@@ -90,27 +142,39 @@
       accountId: '',
       paidOn: format(new Date(), 'yyyy-MM-dd'),
     };
-    splitRows = [{ customerId: '', amount: '' }];
+    splitRows = [{ customerId: '', amount: '', pendingTxns: [], linkedPendingId: '' }];
+    customerPendingTxns = [];
+    linkedPendingIds = new Set();
     showModal = true;
   }
 
   async function saveSplit() {
     const rows = splitRows.filter(r => r.customerId && r.amount);
     for (const row of rows) {
-      const customer = customers.find(c => c.id === row.customerId);
-      await addTransaction({
-        customerId: row.customerId,
-        customerName: customer?.name || '',
-        amount: Number(row.amount),
-        type: 'rent',
-        period: splitForm.period,
-        status: 'paid',
-        accountId: splitForm.accountId || null,
-        paidOn: splitForm.paidOn ? new Date(splitForm.paidOn) : new Date(),
-        dueDate: new Date(),
-        bookingId: null,
-        notes: splitForm.payerName ? `Paid by ${splitForm.payerName}` : '',
-      });
+      if (row.linkedPendingId) {
+        await updateTransaction(row.linkedPendingId, {
+          status: 'paid',
+          amount: Number(row.amount),
+          paidOn: splitForm.paidOn ? new Date(splitForm.paidOn) : new Date(),
+          accountId: splitForm.accountId || null,
+          notes: splitForm.payerName ? `Paid by ${splitForm.payerName}` : ''
+        });
+      } else {
+        const customer = customers.find(c => c.id === row.customerId);
+        await addTransaction({
+          customerId: row.customerId,
+          customerName: customer?.name || '',
+          amount: Number(row.amount),
+          type: 'rent',
+          period: splitForm.period,
+          status: 'paid',
+          accountId: splitForm.accountId || null,
+          paidOn: splitForm.paidOn ? new Date(splitForm.paidOn) : new Date(),
+          dueDate: new Date(),
+          bookingId: null,
+          notes: splitForm.payerName ? `Paid by ${splitForm.payerName}` : '',
+        });
+      }
     }
     showModal = false;
     splitMode = false;
@@ -118,20 +182,28 @@
   }
 
   async function save() {
-    const customer = customers.find(c => c.id === form.customerId);
-    const data = {
-      ...form,
-      bookingId: null,
-      customerName: customer?.name || '',
-      amount: Number(form.amount),
-      dueDate: new Date(),
-      paidOn: form.paidOn ? new Date(form.paidOn) : null,
-      accountId: form.status === 'paid' ? (form.accountId || null) : null
-    };
-    if (editingTxn) {
-      await updateTransaction(editingTxn.id, data);
+    if (linkedPendingIds.size > 0) {
+      for (const id of linkedPendingIds) {
+        await updateTransaction(id, {
+          status: 'paid',
+          paidOn: form.paidOn ? new Date(form.paidOn) : new Date(),
+          accountId: form.accountId || null,
+          notes: form.notes || ''
+        });
+      }
     } else {
-      await addTransaction(data);
+      const customer = customers.find(c => c.id === form.customerId);
+      const data = {
+        ...form,
+        bookingId: null,
+        customerName: customer?.name || '',
+        amount: Number(form.amount),
+        dueDate: new Date(),
+        paidOn: form.paidOn ? new Date(form.paidOn) : null,
+        accountId: form.status === 'paid' ? (form.accountId || null) : null
+      };
+      if (editingTxn) await updateTransaction(editingTxn.id, data);
+      else await addTransaction(data);
     }
     showModal = false;
     await load();
@@ -422,20 +494,31 @@
       <div class="space-y-2">
         <label class="label">Customers</label>
         {#each splitRows as row, i}
-          <div class="flex gap-2 items-center">
-            <select class="input flex-1" bind:value={row.customerId} required>
-              <option value="">Select customer...</option>
-              {#each customers as c}
-                <option value={c.id}>{c.name}</option>
-              {/each}
-            </select>
-            <input class="input w-28" type="number" bind:value={row.amount} placeholder="Amount" min="1" required />
-            {#if splitRows.length > 1}
-              <button type="button" class="text-gray-400 hover:text-red-500 text-lg leading-none" on:click={() => splitRows = splitRows.filter((_, j) => j !== i)}>×</button>
+          <div class="space-y-1">
+            <div class="flex gap-2 items-center">
+              <select class="input flex-1" bind:value={row.customerId} on:change={() => onSplitCustomerChange(i, row.customerId)} required>
+                <option value="">Select customer...</option>
+                {#each customers as c}
+                  <option value={c.id}>{c.name}</option>
+                {/each}
+              </select>
+              <input class="input w-28" type="number" bind:value={row.amount} placeholder="Amount" min="1" required />
+              {#if row.pendingTxns?.length > 0}
+                <button type="button" class="text-xs text-blue-600 hover:text-blue-800 font-medium whitespace-nowrap" on:click={() => autoLinkSplitRow(i)}>Auto</button>
+              {/if}
+              {#if splitRows.length > 1}
+                <button type="button" class="text-gray-400 hover:text-red-500 text-lg leading-none" on:click={() => splitRows = splitRows.filter((_, j) => j !== i)}>×</button>
+              {/if}
+            </div>
+            {#if row.pendingTxns?.length > 0}
+              <p class="text-xs text-amber-600 pl-1">
+                {formatCurrency(row.pendingTxns.reduce((s, t) => s + t.amount, 0))} pending
+                {#if row.linkedPendingId}· <span class="text-green-600 font-medium">linked</span>{/if}
+              </p>
             {/if}
           </div>
         {/each}
-        <button type="button" class="text-sm text-blue-600 hover:text-blue-800 font-medium" on:click={() => splitRows = [...splitRows, { customerId: '', amount: '' }]}>+ Add Customer</button>
+        <button type="button" class="text-sm text-blue-600 hover:text-blue-800 font-medium" on:click={() => splitRows = [...splitRows, { customerId: '', amount: '', pendingTxns: [], linkedPendingId: '' }]}>+ Add Customer</button>
       </div>
 
       {#if splitTotal > 0}
@@ -453,12 +536,30 @@
     <form on:submit|preventDefault={save} class="space-y-4">
       <div>
         <label class="label">Customer *</label>
-        <select class="input" bind:value={form.customerId} required>
+        <select class="input" bind:value={form.customerId} on:change={() => onCustomerChange(form.customerId)} required>
           <option value="">Select customer...</option>
           {#each customers as c}
             <option value={c.id}>{c.name}</option>
           {/each}
         </select>
+        {#if customerPendingTxns.length > 0}
+          <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+            <div class="flex items-center justify-between">
+              <p class="text-xs font-medium text-amber-800">
+                {formatCurrency(customerPendingTxns.reduce((s, t) => s + t.amount, 0))} pending · {customerPendingTxns.length} transaction{customerPendingTxns.length > 1 ? 's' : ''}
+              </p>
+              <button type="button" class="text-xs text-blue-600 hover:text-blue-800 font-medium" on:click={autoLinkOldest}>
+                Auto-link oldest
+              </button>
+            </div>
+            {#each customerPendingTxns as pt}
+              <label class="flex items-center gap-2 text-xs text-amber-900 cursor-pointer select-none">
+                <input type="checkbox" class="rounded" checked={linkedPendingIds.has(pt.id)} on:change={() => toggleLinkedPending(pt.id)} />
+                <span>{pt.period || '—'} — {formatCurrency(pt.amount)}</span>
+              </label>
+            {/each}
+          </div>
+        {/if}
       </div>
       <div class="grid grid-cols-2 gap-3">
         <div>
