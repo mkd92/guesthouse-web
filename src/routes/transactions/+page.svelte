@@ -244,7 +244,6 @@
           dueDate: new Date(),
           bookingId: null,
           propertyId: markPaidTxn.propertyId || null,
-          propertyName: markPaidTxn.propertyName || null,
           notes: `Balance from partial payment (original: ₹${full})`
         });
         filter = 'all'; // show both paid + pending balance
