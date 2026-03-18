@@ -607,7 +607,7 @@
           />
           <input type="hidden" bind:value={form.customerId} required />
           {#if customerSuggestionsVisible && customerSuggestions.length > 0}
-            <ul class="absolute z-50 w-full mt-1 rounded-lg border shadow-lg max-h-52 overflow-y-auto" style="background: var(--surface-2); border-color: var(--border-1);">
+            <ul class="absolute z-50 w-full mt-1 rounded-lg border shadow-lg max-h-52 overflow-y-auto" style="background: var(--bg-elevated, #2C2C38); border-color: var(--border-1, #3a3a4a);">
               {#each customerSuggestions as c, i}
                 <li
                   class="px-3 py-2 cursor-pointer text-sm"
