@@ -150,35 +150,41 @@
 
   async function saveSplit() {
     const rows = splitRows.filter(r => r.customerId && r.amount);
-    for (const row of rows) {
-      if (row.linkedPendingId) {
-        await updateTransaction(row.linkedPendingId, {
-          status: 'paid',
-          amount: Number(row.amount),
-          paidOn: splitForm.paidOn ? new Date(splitForm.paidOn) : new Date(),
-          accountId: splitForm.accountId || null,
-          notes: splitForm.payerName ? `Paid by ${splitForm.payerName}` : ''
-        });
-      } else {
-        const customer = customers.find(c => c.id === row.customerId);
-        await addTransaction({
-          customerId: row.customerId,
-          customerName: customer?.name || '',
-          amount: Number(row.amount),
-          type: 'rent',
-          period: splitForm.period,
-          status: 'paid',
-          accountId: splitForm.accountId || null,
-          paidOn: splitForm.paidOn ? new Date(splitForm.paidOn) : new Date(),
-          dueDate: new Date(),
-          bookingId: null,
-          notes: splitForm.payerName ? `Paid by ${splitForm.payerName}` : '',
-        });
+    const today = format(new Date(), 'yyyy-MM-dd');
+    try {
+      for (const row of rows) {
+        if (row.linkedPendingId) {
+          await updateTransaction(row.linkedPendingId, {
+            status: 'paid',
+            amount: Number(row.amount),
+            paidOn: splitForm.paidOn || today,
+            accountId: splitForm.accountId || null,
+            notes: splitForm.payerName ? `Paid by ${splitForm.payerName}` : ''
+          });
+        } else {
+          const customer = customers.find(c => c.id === row.customerId);
+          await addTransaction({
+            customerId: row.customerId,
+            customerName: customer?.name || '',
+            amount: Number(row.amount),
+            type: 'rent',
+            period: splitForm.period,
+            status: 'paid',
+            accountId: splitForm.accountId || null,
+            paidOn: splitForm.paidOn || today,
+            dueDate: today,
+            bookingId: null,
+            notes: splitForm.payerName ? `Paid by ${splitForm.payerName}` : '',
+          });
+        }
       }
+      showModal = false;
+      splitMode = false;
+      await load();
+    } catch (err) {
+      console.error('saveSplit error:', err);
+      alert(`Failed to save: ${err?.message || JSON.stringify(err)}`);
     }
-    showModal = false;
-    splitMode = false;
-    await load();
   }
 
   async function save() {
