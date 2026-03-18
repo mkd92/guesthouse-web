@@ -16,6 +16,7 @@
   let showAccountModal = false;
   let editingAccount = null;
   let accountForm = { name: '', type: 'cash', openingBalance: 0, notes: '' };
+  let accountError = '';
 
   // Transfer modal
   let showTransferModal = false;
@@ -94,14 +95,19 @@
   }
 
   async function saveAccount() {
-    const data = { ...accountForm, openingBalance: Number(accountForm.openingBalance) };
-    if (editingAccount) {
-      await updateAccount(editingAccount.id, data);
-    } else {
-      await addAccount(data);
+    accountError = '';
+    try {
+      const data = { ...accountForm, openingBalance: Number(accountForm.openingBalance) };
+      if (editingAccount) {
+        await updateAccount(editingAccount.id, data);
+      } else {
+        await addAccount(data);
+      }
+      showAccountModal = false;
+      await load();
+    } catch (e) {
+      accountError = e.message || JSON.stringify(e);
     }
-    showAccountModal = false;
-    await load();
   }
 
   async function removeAccount(id) {
@@ -331,6 +337,9 @@
       <label class="label">Notes</label>
       <input class="input" bind:value={accountForm.notes} placeholder="Optional" />
     </div>
+    {#if accountError}
+      <p class="text-sm text-red-600 bg-red-50 rounded p-2">{accountError}</p>
+    {/if}
     <div class="flex gap-3 pt-2">
       <button type="submit" class="btn-primary flex-1">{editingAccount ? 'Update' : 'Add'}</button>
       <button type="button" class="btn-secondary flex-1" on:click={() => showAccountModal = false}>Cancel</button>
