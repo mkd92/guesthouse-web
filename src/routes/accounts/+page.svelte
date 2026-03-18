@@ -354,7 +354,7 @@
       </div>
       <div>
         <label class="label">Set balance to (₹) *</label>
-        <input class="input" type="number" bind:value={adjustTarget} required />
+        <input class="input" type="number" step="0.01" bind:value={adjustTarget} required />
         {#if Number(adjustTarget) !== current}
           {@const diff = Number(adjustTarget) - current}
           <p class="text-xs mt-1 {diff > 0 ? 'text-green-600' : 'text-red-500'}">
