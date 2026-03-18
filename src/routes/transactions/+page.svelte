@@ -1,7 +1,6 @@
 <script>
   import { onMount } from 'svelte';
   import { getTransactions, addTransaction, updateTransaction, deleteTransaction, getCustomers, getBookings, getProperties, getAccounts } from '$lib/stores/data';
-  import { user } from '$lib/stores/auth';
   import Modal from '$lib/components/Modal.svelte';
   import WhatsAppButton from '$lib/components/WhatsAppButton.svelte';
   import { rentReminderMessage } from '$lib/utils/whatsapp';
@@ -85,8 +84,7 @@
       amount: Number(form.amount),
       dueDate: new Date(),
       paidOn: form.paidOn ? new Date(form.paidOn) : null,
-      accountId: form.status === 'paid' ? (form.accountId || null) : null,
-      createdBy: $user.uid
+      accountId: form.status === 'paid' ? (form.accountId || null) : null
     };
     if (editingTxn) {
       await updateTransaction(editingTxn.id, data);
