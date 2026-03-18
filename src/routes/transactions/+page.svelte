@@ -511,9 +511,9 @@
               {/if}
             </div>
             {#if row.pendingTxns?.length > 0}
-              <p class="text-xs text-amber-600 pl-1">
+              <p class="text-xs font-medium pl-1" style="color: var(--color-orange, #f97316)">
                 {formatCurrency(row.pendingTxns.reduce((s, t) => s + t.amount, 0))} pending
-                {#if row.linkedPendingId}· <span class="text-green-600 font-medium">linked</span>{/if}
+                {#if row.linkedPendingId}· <span class="text-green-500 font-semibold">linked</span>{/if}
               </p>
             {/if}
           </div>
@@ -543,17 +543,17 @@
           {/each}
         </select>
         {#if customerPendingTxns.length > 0}
-          <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+          <div class="mt-2 rounded-lg border border-orange-400 bg-orange-500 p-3 space-y-2">
             <div class="flex items-center justify-between">
-              <p class="text-xs font-medium text-amber-800">
+              <p class="text-xs font-semibold text-white">
                 {formatCurrency(customerPendingTxns.reduce((s, t) => s + t.amount, 0))} pending · {customerPendingTxns.length} transaction{customerPendingTxns.length > 1 ? 's' : ''}
               </p>
-              <button type="button" class="text-xs text-blue-600 hover:text-blue-800 font-medium" on:click={autoLinkOldest}>
+              <button type="button" class="text-xs text-white underline font-medium hover:opacity-80" on:click={autoLinkOldest}>
                 Auto-link oldest
               </button>
             </div>
             {#each customerPendingTxns as pt}
-              <label class="flex items-center gap-2 text-xs text-amber-900 cursor-pointer select-none">
+              <label class="flex items-center gap-2 text-xs text-white cursor-pointer select-none">
                 <input type="checkbox" class="rounded" checked={linkedPendingIds.has(pt.id)} on:change={() => toggleLinkedPending(pt.id)} />
                 <span>{pt.period || '—'} — {formatCurrency(pt.amount)}</span>
               </label>
