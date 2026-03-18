@@ -77,12 +77,12 @@
   }
 
   async function onSplitCustomerChange(i, customerId) {
-    splitRows[i].linkedPendingId = '';
-    splitRows[i].pendingTxns = [];
+    let pendingTxns = [];
     if (customerId) {
       const all = await getTransactions({ customerId, status: 'pending' });
-      splitRows[i].pendingTxns = all.slice().reverse(); // oldest first
+      pendingTxns = all.slice().reverse(); // oldest first
     }
+    splitRows[i] = { ...splitRows[i], linkedPendingId: '', pendingTxns };
     splitRows = [...splitRows];
   }
 
@@ -90,8 +90,7 @@
     const row = splitRows[i];
     if (!row.pendingTxns?.length) return;
     const oldest = row.pendingTxns[0];
-    splitRows[i].linkedPendingId = oldest.id;
-    splitRows[i].amount = oldest.amount;
+    splitRows[i] = { ...row, linkedPendingId: oldest.id, amount: oldest.amount };
     splitRows = [...splitRows];
   }
 
