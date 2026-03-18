@@ -107,7 +107,8 @@
       await updateBed(editingBed.id, editingBedForm);
     } else {
       const names = previewBedNames(bedForm.roomId, bedForm.count);
-      await Promise.all(names.map(name => addBed({ bedNumber: name, roomId: bedForm.roomId, status: 'available' })));
+      const room = rooms.find(r => r.id === bedForm.roomId);
+      await Promise.all(names.map(name => addBed({ bedNumber: name, roomId: bedForm.roomId, propertyId: room?.propertyId || null, status: 'available' })));
     }
     showBedModal = false;
     await load();
