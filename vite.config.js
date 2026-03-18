@@ -9,9 +9,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'icon-192.png', 'icon-512.png'],
       manifest: {
-        name: 'GuestHouse Manager',
-        short_name: 'GuestHouse',
-        description: 'Manage rooms, customers, and rent for your guesthouse',
+        name: 'Lobby',
+        short_name: 'Lobby',
+        description: 'Manage rooms, customers, and rent',
         theme_color: '#2563eb',
         background_color: '#f9fafb',
         display: 'standalone',

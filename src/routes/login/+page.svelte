@@ -72,7 +72,7 @@
           <polyline points="9 22 9 12 15 12 15 22"/>
         </svg>
       </div>
-      <h1 class="text-2xl font-bold text-white tracking-tight">RentRelay</h1>
+      <h1 class="text-2xl font-bold text-white tracking-tight">Lobby</h1>
       <p class="text-slate-400 mt-1 text-sm">Guesthouse Manager</p>
     </div>
 

@@ -55,14 +55,14 @@
     '/leases': 'Leases', '/expenses': 'Expenses',
     '/maintenance': 'Maintenance',
   };
-  $: pageTitle = Object.entries(pageTitles).find(([k]) => $page.url.pathname.startsWith(k))?.[1] ?? 'GuestHouse';
+  $: pageTitle = Object.entries(pageTitles).find(([k]) => $page.url.pathname.startsWith(k))?.[1] ?? 'Lobby';
 </script>
 
 <svelte:head>
   <meta name="theme-color" content="#f59e0b" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="RentRelay" />
+  <meta name="apple-mobile-web-app-title" content="Lobby" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
 </svelte:head>
 

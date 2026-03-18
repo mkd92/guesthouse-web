@@ -56,7 +56,7 @@
         </svg>
       </div>
       <div>
-        <p class="font-bold text-[13px] leading-tight tracking-tight" style="color: var(--text-1);">RentRelay</p>
+        <p class="font-bold text-[13px] leading-tight tracking-tight" style="color: var(--text-1);">Lobby</p>
         <p class="text-[10px] font-medium" style="color: var(--text-3);">Manager</p>
       </div>
     </div>
