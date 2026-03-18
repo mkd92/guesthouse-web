@@ -22,6 +22,34 @@
   let showTransferModal = false;
   let transferForm = { fromAccountId: '', toAccountId: '', amount: '', date: format(new Date(), 'yyyy-MM-dd'), notes: '' };
 
+  // Adjust balance modal
+  let showAdjustModal = false;
+  let adjustAccount = null;
+  let adjustTarget = '';
+  let adjustError = '';
+
+  function openAdjust(account) {
+    adjustAccount = account;
+    adjustTarget = balances[account.id] ?? account.openingBalance ?? 0;
+    adjustError = '';
+    showAdjustModal = true;
+  }
+
+  async function saveAdjust() {
+    adjustError = '';
+    try {
+      const current = balances[adjustAccount.id] ?? 0;
+      const desired = Number(adjustTarget);
+      const diff = desired - current;
+      const newOpening = (adjustAccount.openingBalance || 0) + diff;
+      await updateAccount(adjustAccount.id, { openingBalance: newOpening });
+      showAdjustModal = false;
+      await load();
+    } catch (e) {
+      adjustError = e.message || JSON.stringify(e);
+    }
+  }
+
   // Ledger modal
   let showLedger = false;
   let ledgerAccount = null;
@@ -267,6 +295,7 @@
               <td class="px-4 py-3">
                 <div class="flex gap-1 justify-end">
                   <button class="btn-secondary text-xs py-1 px-2" on:click={() => openLedger(account)}>Ledger</button>
+                  <button class="btn-secondary text-xs py-1 px-2" on:click={() => openAdjust(account)}>Adjust</button>
                   <button class="btn-secondary text-xs py-1 px-2" on:click={() => openEditAccount(account)}>Edit</button>
                   <button class="btn-danger text-xs py-1 px-2" on:click={() => removeAccount(account.id)}>Del</button>
                 </div>
@@ -313,6 +342,36 @@
     {/if}
   {/if}
 </div>
+
+<!-- Adjust Balance Modal -->
+<Modal title="Adjust Balance — {adjustAccount?.name || ''}" bind:open={showAdjustModal}>
+  {#if adjustAccount}
+    {@const current = balances[adjustAccount.id] ?? 0}
+    <form on:submit|preventDefault={saveAdjust} class="space-y-4">
+      <div class="rounded-lg p-3 text-sm" style="background: var(--bg-elevated);">
+        <span style="color: var(--text-3);">Current balance</span>
+        <span class="float-right font-semibold {current < 0 ? 'text-red-500' : 'text-green-600'}">{formatCurrency(current)}</span>
+      </div>
+      <div>
+        <label class="label">Set balance to (₹) *</label>
+        <input class="input" type="number" bind:value={adjustTarget} required />
+        {#if Number(adjustTarget) !== current}
+          {@const diff = Number(adjustTarget) - current}
+          <p class="text-xs mt-1 {diff > 0 ? 'text-green-600' : 'text-red-500'}">
+            {diff > 0 ? '+' : ''}{formatCurrency(diff)} adjustment will be applied via opening balance
+          </p>
+        {/if}
+      </div>
+      {#if adjustError}
+        <p class="text-sm text-red-600 bg-red-50 rounded p-2">{adjustError}</p>
+      {/if}
+      <div class="flex gap-3 pt-2">
+        <button type="submit" class="btn-primary flex-1">Save</button>
+        <button type="button" class="btn-secondary flex-1" on:click={() => showAdjustModal = false}>Cancel</button>
+      </div>
+    </form>
+  {/if}
+</Modal>
 
 <!-- Add/Edit Account Modal -->
 <Modal title={editingAccount ? 'Edit Account' : 'Add Account'} bind:open={showAccountModal}>
