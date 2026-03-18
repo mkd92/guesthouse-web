@@ -3,7 +3,7 @@
   import {
     getCustomers, addCustomer, updateCustomer, deleteCustomer,
     getAvailableBeds, addBooking, updateBooking, updateBed,
-    getBookingsByCustomer, addTransaction,
+    getBookingsByCustomer, addTransaction, getBookings, getTransactions,
     getProperties, getUnits, getAvailableUnits, addLease, updateUnit, getLeases
   } from '$lib/stores/data';
   import { user } from '$lib/stores/auth';
@@ -33,7 +33,16 @@
   let leaseCustomerIds = new Set();
 
   let customerForm = { name: '', phone: '', email: '', idType: 'Aadhaar', idNumber: '', address: '' };
-  let checkInForm = { bedId: '', rentPerMonth: '', checkIn: format(new Date(), 'yyyy-MM-dd'), deposit: '' };
+  let checkInForm = { bedId: '', rentPerMonth: '', checkIn: format(new Date(), 'yyyy-MM-dd'), deposit: '', firstMonthRent: '' };
+
+  $: {
+    if (checkInForm.rentPerMonth && checkInForm.checkIn) {
+      const d = new Date(checkInForm.checkIn);
+      const daysInMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      const remaining = daysInMonth - d.getDate() + 1;
+      checkInForm.firstMonthRent = Math.round((Number(checkInForm.rentPerMonth) / daysInMonth) * remaining);
+    }
+  }
   let checkOutCustomer = null;
   let activeBooking = null;
 
@@ -108,7 +117,7 @@
 
   async function openCheckIn(customer) {
     selectedCustomer = customer;
-    checkInForm = { bedId: '', rentPerMonth: '', checkIn: format(new Date(), 'yyyy-MM-dd'), deposit: '' };
+    checkInForm = { bedId: '', rentPerMonth: '', checkIn: format(new Date(), 'yyyy-MM-dd'), deposit: '', firstMonthRent: '' };
     showCheckInModal = true;
   }
 
@@ -137,10 +146,27 @@
         amount: Number(checkInForm.deposit),
         type: 'deposit',
         period: format(new Date(), 'MMMM yyyy'),
-        status: 'paid',
-        paidOn: format(new Date(), 'yyyy-MM-dd'),
+        status: 'pending',
+        paidOn: null,
         dueDate: format(new Date(), 'yyyy-MM-dd'),
         notes: 'Security deposit on check-in',
+      });
+    }
+    if (Number(checkInForm.rentPerMonth) > 0 && Number(checkInForm.firstMonthRent) > 0) {
+      await addTransaction({
+        bookingId: bookingRef.id,
+        customerId: selectedCustomer.id,
+        customerName: selectedCustomer.name,
+        bedName: bed.bedNumber,
+        propertyId: bed.propertyId || null,
+        source: 'pg',
+        amount: Number(checkInForm.firstMonthRent),
+        type: 'rent',
+        period: format(new Date(checkInForm.checkIn), 'MMMM yyyy'),
+        status: 'pending',
+        paidOn: null,
+        dueDate: format(new Date(new Date(checkInForm.checkIn).getFullYear(), new Date(checkInForm.checkIn).getMonth(), 5), 'yyyy-MM-dd'),
+        notes: `First month rent (prorated from ${checkInForm.checkIn})`,
       });
     }
     showCheckInModal = false;
@@ -237,6 +263,70 @@
     await load();
   }
 
+  async function backfillPendingTransactions() {
+    if (!confirm('This will create pending deposit and rent transactions for all active PG customers that have none. Continue?')) return;
+
+    const [activeBookings, existingTxns] = await Promise.all([
+      getBookings('active'),
+      getTransactions({})
+    ]);
+
+    const existingKeys = new Set(
+      existingTxns.map(t => t.type === 'deposit' ? `${t.bookingId}-deposit` : `${t.bookingId}-${t.period}-rent`)
+    );
+
+    const customerMap = Object.fromEntries(customers.map(c => [c.id, c]));
+    const currentPeriod = format(new Date(), 'MMMM yyyy');
+    const dueDate = format(new Date(new Date().getFullYear(), new Date().getMonth(), 5), 'yyyy-MM-dd');
+    let created = 0;
+
+    for (const booking of activeBookings) {
+      const customer = customerMap[booking.customerId];
+      if (!customer) continue;
+
+      if (booking.deposit > 0 && !existingKeys.has(`${booking.id}-deposit`)) {
+        await addTransaction({
+          bookingId: booking.id,
+          customerId: booking.customerId,
+          customerName: customer.name,
+          bedName: '',
+          propertyId: booking.propertyId || null,
+          source: 'pg',
+          amount: booking.deposit,
+          type: 'deposit',
+          period: currentPeriod,
+          status: 'pending',
+          paidOn: null,
+          dueDate: format(new Date(), 'yyyy-MM-dd'),
+          notes: 'Advance/deposit (backfilled)',
+        });
+        created++;
+      }
+
+      if (booking.rentPerMonth > 0 && !existingKeys.has(`${booking.id}-${currentPeriod}-rent`)) {
+        await addTransaction({
+          bookingId: booking.id,
+          customerId: booking.customerId,
+          customerName: customer.name,
+          bedName: '',
+          propertyId: booking.propertyId || null,
+          source: 'pg',
+          amount: booking.rentPerMonth,
+          type: 'rent',
+          period: currentPeriod,
+          status: 'pending',
+          paidOn: null,
+          dueDate: dueDate,
+          notes: `Rent for ${currentPeriod} (backfilled)`,
+        });
+        created++;
+      }
+    }
+
+    await load();
+    alert(`Done! ${created} pending transaction(s) created.`);
+  }
+
   function formatDate(ts) {
     if (!ts) return '—';
     const d = ts.toDate ? ts.toDate() : new Date(ts);
@@ -254,7 +344,10 @@
       <h1 class="hidden md:block text-2xl font-bold text-gray-900">Customers</h1>
       <p class="text-sm text-gray-500 mt-0.5">{customers.length} total customers</p>
     </div>
-    <button class="btn-primary" on:click={() => openCustomerModal()}>+ Add Customer</button>
+    <div class="flex gap-2">
+      <button class="btn-secondary" on:click={backfillPendingTransactions}>Generate Pending Txns</button>
+      <button class="btn-primary" on:click={() => openCustomerModal()}>+ Add Customer</button>
+    </div>
   </div>
 
   <!-- Search -->
@@ -414,6 +507,11 @@
     <div>
       <label class="label">Monthly Rent (₹) *</label>
       <input class="input" type="number" bind:value={checkInForm.rentPerMonth} min="0" placeholder="e.g., 5000" required />
+    </div>
+    <div>
+      <label class="label">First Month Rent (₹) — prorated, editable</label>
+      <input class="input" type="number" bind:value={checkInForm.firstMonthRent} min="0" required />
+      <p class="text-xs text-gray-400 mt-0.5">Auto-calculated from check-in date. Edit if needed.</p>
     </div>
     <div>
       <label class="label">Security Deposit (₹)</label>
