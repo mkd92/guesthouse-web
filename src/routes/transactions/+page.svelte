@@ -32,6 +32,17 @@
     notes: ''
   };
 
+  let splitMode = false;
+  let splitForm = {
+    payerName: '',
+    period: format(new Date(), 'MMMM yyyy'),
+    accountId: '',
+    paidOn: format(new Date(), 'yyyy-MM-dd'),
+  };
+  let splitRows = [{ customerId: '', amount: '' }];
+
+  $: splitTotal = splitRows.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+
   async function load() {
     loading = true;
     const filters = {};
@@ -72,7 +83,38 @@
       paidOn: '',
       notes: ''
     };
+    splitMode = false;
+    splitForm = {
+      payerName: '',
+      period: format(new Date(), 'MMMM yyyy'),
+      accountId: '',
+      paidOn: format(new Date(), 'yyyy-MM-dd'),
+    };
+    splitRows = [{ customerId: '', amount: '' }];
     showModal = true;
+  }
+
+  async function saveSplit() {
+    const rows = splitRows.filter(r => r.customerId && r.amount);
+    for (const row of rows) {
+      const customer = customers.find(c => c.id === row.customerId);
+      await addTransaction({
+        customerId: row.customerId,
+        customerName: customer?.name || '',
+        amount: Number(row.amount),
+        type: 'rent',
+        period: splitForm.period,
+        status: 'paid',
+        accountId: splitForm.accountId || null,
+        paidOn: splitForm.paidOn ? new Date(splitForm.paidOn) : new Date(),
+        dueDate: new Date(),
+        bookingId: null,
+        notes: splitForm.payerName ? `Paid by ${splitForm.payerName}` : '',
+      });
+    }
+    showModal = false;
+    splitMode = false;
+    await load();
   }
 
   async function save() {
@@ -336,57 +378,36 @@
 
 <!-- Transaction Modal -->
 <Modal title={editingTxn ? 'Edit Transaction' : 'Add Transaction'} bind:open={showModal}>
-  <form on:submit|preventDefault={save} class="space-y-4">
-    <div>
-      <label class="label">Customer *</label>
-      <select class="input" bind:value={form.customerId} required>
-        <option value="">Select customer...</option>
-        {#each customers as c}
-          <option value={c.id}>{c.name}</option>
-        {/each}
-      </select>
+  {#if !editingTxn}
+    <div class="flex gap-1 p-1 bg-gray-100 rounded-lg mb-4">
+      <button
+        type="button"
+        class="flex-1 py-1.5 text-sm font-medium rounded-md transition-colors
+          {!splitMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}"
+        on:click={() => splitMode = false}
+      >Single</button>
+      <button
+        type="button"
+        class="flex-1 py-1.5 text-sm font-medium rounded-md transition-colors
+          {splitMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}"
+        on:click={() => splitMode = true}
+      >Split</button>
     </div>
-    <div class="grid grid-cols-2 gap-3">
+  {/if}
+
+  {#if splitMode}
+    <form on:submit|preventDefault={saveSplit} class="space-y-4">
       <div>
-        <label class="label">Type</label>
-        <select class="input" bind:value={form.type}>
-          <option value="rent">Rent</option>
-          <option value="deposit">Deposit</option>
-          <option value="advance">Advance</option>
-          <option value="refund">Refund</option>
-          <option value="other">Other</option>
-        </select>
+        <label class="label">Payer Name</label>
+        <input class="input" bind:value={splitForm.payerName} placeholder="e.g. Mrs Jayalakshmi" />
       </div>
       <div>
-        <label class="label">Amount (₹) *</label>
-        <input class="input" type="number" bind:value={form.amount} min="0" required />
+        <label class="label">Period</label>
+        <input class="input" bind:value={splitForm.period} placeholder="e.g., March 2026" />
       </div>
-    </div>
-    <div>
-      <label class="label">Period</label>
-      <input class="input" bind:value={form.period} placeholder="e.g., March 2026" />
-    </div>
-    <div>
-      <label class="label">Status</label>
-      <div class="flex gap-2">
-        <button
-          type="button"
-          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-colors
-            {form.status === 'pending' ? 'bg-red-50 border-red-300 text-red-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}"
-          on:click={() => { form.status = 'pending'; form.accountId = ''; form.paidOn = ''; }}
-        >Pending</button>
-        <button
-          type="button"
-          class="flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-colors
-            {form.status === 'paid' ? 'bg-green-50 border-green-300 text-green-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}"
-          on:click={() => { form.status = 'paid'; if (!form.paidOn) form.paidOn = format(new Date(), 'yyyy-MM-dd'); }}
-        >Paid</button>
-      </div>
-    </div>
-    {#if form.status === 'paid'}
       <div>
         <label class="label">Account</label>
-        <select class="input" bind:value={form.accountId}>
+        <select class="input" bind:value={splitForm.accountId}>
           <option value="">Select account...</option>
           {#each accounts as a}
             <option value={a.id}>{a.name} ({a.type})</option>
@@ -395,16 +416,110 @@
       </div>
       <div>
         <label class="label">Paid On</label>
-        <input class="input" type="date" bind:value={form.paidOn} />
+        <input class="input" type="date" bind:value={splitForm.paidOn} />
       </div>
-    {/if}
-    <div>
-      <label class="label">Notes</label>
-      <input class="input" bind:value={form.notes} placeholder="Optional notes..." />
-    </div>
-    <div class="flex gap-3 pt-2">
-      <button type="submit" class="btn-primary flex-1">{editingTxn ? 'Update' : 'Add'}</button>
-      <button type="button" class="btn-secondary flex-1" on:click={() => showModal = false}>Cancel</button>
-    </div>
-  </form>
+
+      <div class="space-y-2">
+        <label class="label">Customers</label>
+        {#each splitRows as row, i}
+          <div class="flex gap-2 items-center">
+            <select class="input flex-1" bind:value={row.customerId} required>
+              <option value="">Select customer...</option>
+              {#each customers as c}
+                <option value={c.id}>{c.name}</option>
+              {/each}
+            </select>
+            <input class="input w-28" type="number" bind:value={row.amount} placeholder="Amount" min="1" required />
+            {#if splitRows.length > 1}
+              <button type="button" class="text-gray-400 hover:text-red-500 text-lg leading-none" on:click={() => splitRows = splitRows.filter((_, j) => j !== i)}>×</button>
+            {/if}
+          </div>
+        {/each}
+        <button type="button" class="text-sm text-blue-600 hover:text-blue-800 font-medium" on:click={() => splitRows = [...splitRows, { customerId: '', amount: '' }]}>+ Add Customer</button>
+      </div>
+
+      {#if splitTotal > 0}
+        <div class="text-right text-sm font-semibold text-gray-700">
+          Total: {formatCurrency(splitTotal)}
+        </div>
+      {/if}
+
+      <div class="flex gap-3 pt-2">
+        <button type="submit" class="btn-primary flex-1">Save {splitRows.filter(r => r.customerId && r.amount).length || ''} Transactions</button>
+        <button type="button" class="btn-secondary flex-1" on:click={() => showModal = false}>Cancel</button>
+      </div>
+    </form>
+  {:else}
+    <form on:submit|preventDefault={save} class="space-y-4">
+      <div>
+        <label class="label">Customer *</label>
+        <select class="input" bind:value={form.customerId} required>
+          <option value="">Select customer...</option>
+          {#each customers as c}
+            <option value={c.id}>{c.name}</option>
+          {/each}
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="label">Type</label>
+          <select class="input" bind:value={form.type}>
+            <option value="rent">Rent</option>
+            <option value="deposit">Deposit</option>
+            <option value="advance">Advance</option>
+            <option value="refund">Refund</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label class="label">Amount (₹) *</label>
+          <input class="input" type="number" bind:value={form.amount} min="0" required />
+        </div>
+      </div>
+      <div>
+        <label class="label">Period</label>
+        <input class="input" bind:value={form.period} placeholder="e.g., March 2026" />
+      </div>
+      <div>
+        <label class="label">Status</label>
+        <div class="flex gap-2">
+          <button
+            type="button"
+            class="flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-colors
+              {form.status === 'pending' ? 'bg-red-50 border-red-300 text-red-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}"
+            on:click={() => { form.status = 'pending'; form.accountId = ''; form.paidOn = ''; }}
+          >Pending</button>
+          <button
+            type="button"
+            class="flex-1 py-2 px-4 rounded-lg text-sm font-medium border transition-colors
+              {form.status === 'paid' ? 'bg-green-50 border-green-300 text-green-700' : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'}"
+            on:click={() => { form.status = 'paid'; if (!form.paidOn) form.paidOn = format(new Date(), 'yyyy-MM-dd'); }}
+          >Paid</button>
+        </div>
+      </div>
+      {#if form.status === 'paid'}
+        <div>
+          <label class="label">Account</label>
+          <select class="input" bind:value={form.accountId}>
+            <option value="">Select account...</option>
+            {#each accounts as a}
+              <option value={a.id}>{a.name} ({a.type})</option>
+            {/each}
+          </select>
+        </div>
+        <div>
+          <label class="label">Paid On</label>
+          <input class="input" type="date" bind:value={form.paidOn} />
+        </div>
+      {/if}
+      <div>
+        <label class="label">Notes</label>
+        <input class="input" bind:value={form.notes} placeholder="Optional notes..." />
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button type="submit" class="btn-primary flex-1">{editingTxn ? 'Update' : 'Add'}</button>
+        <button type="button" class="btn-secondary flex-1" on:click={() => showModal = false}>Cancel</button>
+      </div>
+    </form>
+  {/if}
 </Modal>
